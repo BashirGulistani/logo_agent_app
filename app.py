@@ -1,18 +1,19 @@
 import os
 import uuid
+import random
 import requests
 import openai
 import streamlit as st
 from io import BytesIO
-from PIL import Image, ImageEnhance
+from PIL import Image
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.utils import ImageReader
 
-# ---- CONFIG ----
+# Create output dir
 os.makedirs("output", exist_ok=True)
 
-# ---- FUNCTIONS ----
+# ---- UTIL FUNCTIONS ----
 
 def get_logo_from_brandfetch(domain, brandfetch_api_key):
     headers = {"Authorization": f"Bearer {brandfetch_api_key}"}
@@ -30,11 +31,11 @@ def download_image(url):
 def is_logo_bright(image):
     grayscale = image.convert("L")
     brightness = sum(grayscale.getdata()) / (grayscale.width * grayscale.height)
-    return brightness > 180  # brightness threshold
+    return brightness > 180
 
 def generate_product_image(product_type, background_color, openai_api_key):
     openai.api_key = openai_api_key
-    prompt = f"{product_type} mockup, {background_color} background, minimal, flat view"
+    prompt = f"{product_type} mockup, {background_color} background, minimal, flat view, make sure the images are realistic"
     response = openai.images.generate(
         model="dall-e-3",
         prompt=prompt,
@@ -44,26 +45,30 @@ def generate_product_image(product_type, background_color, openai_api_key):
     img_url = response.data[0].url
     return download_image(img_url)
 
-def overlay_logo(base_image, logo_image):
-    # Resize logo smaller and adjust opacity for realistic print effect
-    logo_size = int(base_image.width * 0.25)
-    logo_resized = logo_image.resize((logo_size, logo_size))
+def generate_print_mockup(product_img: Image.Image, logo_img: Image.Image, product_type: str, openai_api_key: str):
+    openai.api_key = openai_api_key
 
-    # Optional: simulate print by reducing alpha slightly
-    if logo_resized.mode != 'RGBA':
-        logo_resized = logo_resized.convert('RGBA')
-    alpha = logo_resized.split()[3]
-    alpha = alpha.point(lambda p: p * 0.85)  # reduce transparency to simulate print
-    logo_resized.putalpha(alpha)
+    prompt = f"I want to print this {product_type} with print-on-demand. Place this logo naturally on the front of the {product_type} so it looks like a real product mockup. Make sure the logo is visible but not too big."
 
-    # Place logo higher on the product (e.g., center-top chest of t-shirt)
-    x = base_image.width // 2 - logo_size // 2
-    y = int(base_image.height * 0.2)
+    def img_to_bytes(img):
+        buf = BytesIO()
+        img.save(buf, format="PNG")
+        buf.seek(0)
+        return buf
 
-    # Paste logo into base product
-    base_image.paste(logo_resized, (x, y), logo_resized)
-    return base_image
+    product_bytes = img_to_bytes(product_img)
+    logo_bytes = img_to_bytes(logo_img)
 
+    # ✳️ Requires OpenAI's image editing capabilities with image+prompt input.
+    response = openai.images.edit(
+        prompt=prompt,
+        image=product_bytes,
+        mask=None,  # No mask, let it place freely
+        n=1,
+        size="1024x1024"
+    )
+    result_url = response['data'][0]['url']
+    return download_image(result_url)
 
 def create_pdf(images, pdf_path="output/product_mockups.pdf"):
     c = canvas.Canvas(pdf_path, pagesize=A4)
@@ -78,7 +83,7 @@ def create_pdf(images, pdf_path="output/product_mockups.pdf"):
 
 # ---- STREAMLIT APP ----
 
-st.title("🔧 Auto Product Mockup Generator")
+st.title("🛍️ Product Mockup Generator with Print-Ready Logos")
 
 brand = st.text_input("Enter company domain (e.g., nike.com)")
 brandfetch_key = st.text_input("Brandfetch API Key", type="password")
@@ -86,40 +91,33 @@ openai_key = st.text_input("OpenAI API Key", type="password")
 run = st.button("Generate Mockups")
 
 if run and brand and brandfetch_key and openai_key:
-    with st.spinner("Fetching logo..."):
+    with st.spinner("Fetching logos..."):
         logos = get_logo_from_brandfetch(brand, brandfetch_key)
         if not logos:
             st.stop()
         logos_images = [download_image(url) for url in logos]
 
     main_logo = logos_images[0]
-    logo_brightness = is_logo_bright(main_logo)
-    bg_color = "black" if logo_brightness else "white"
+    bg_color = "black" if is_logo_bright(main_logo) else "white"
+
+    # Adjust logos for 5 products
+    if len(logos_images) < 5:
+        logos_to_use = random.choices(logos_images, k=5)
+    else:
+        logos_to_use = random.sample(logos_images, 5)
 
     products = ["t-shirt", "steel water bottle", "hat", "tote bag", "pen"]
     final_images = []
 
-    st.header("🧢 Final Mockups")
+    st.header("🧢 Final Print-On-Demand Mockups")
 
+    for product, logo in zip(products, logos_to_use):
+        with st.spinner(f"Creating {product}..."):
+            base_product = generate_product_image(product, bg_color, openai_key)
+            final = generate_print_mockup(base_product, logo, product, openai_key)
+            final_images.append(final)
+            st.image(final, caption=product)
 
-    import random
-
-    # Adjust logo list to exactly 5
-    if len(logos_images) < 5:
-        logos_to_use = random.choices(logos_images, k=5)  # Reuse some logos
-    else:
-        logos_to_use = random.sample(logos_images, 5)     # Pick 5 unique
-    
-    for product, logo in zip(products, logos_to_use):    
-        with st.spinner(f"Generating {product}..."):
-            base = generate_product_image(product, bg_color, openai_key)
-            result = overlay_logo(base, logo)
-            final_images.append(result)
-            st.image(result, caption=product)
-
-
-
-    
     with st.spinner("Creating downloadable PDF..."):
         pdf_path = create_pdf(final_images)
         with open(pdf_path, "rb") as f:
