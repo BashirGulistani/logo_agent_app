@@ -35,12 +35,21 @@ def download_image(url: str) -> Image.Image:
     return Image.open(BytesIO(response.content)).convert("RGBA")
 
 def remove_background(image: Image.Image) -> str:
-    result = remove(image)
+    # Convert PIL Image to bytes
+    buffer = BytesIO()
+    image.save(buffer, format="PNG")
+    img_bytes = buffer.getvalue()
+
+    # Remove background
+    result = remove(img_bytes)
+
+    # Save result
     filename = f"{uuid.uuid4()}.png"
     output_path = os.path.join(OUTPUT_DIR, filename)
     with open(output_path, "wb") as f:
         f.write(result)
     return output_path
+
 
 if submit and query:
     with st.spinner("Processing..."):
