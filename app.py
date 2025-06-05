@@ -1,76 +1,100 @@
 import os
 import uuid
 import requests
-from io import BytesIO
-from PIL import Image
-from rembg import remove
-from bs4 import BeautifulSoup
+import openai
 import streamlit as st
+from io import BytesIO
+from PIL import Image, ImageEnhance
+from reportlab.pdfgen import canvas
+from reportlab.lib.pagesizes import A4
+from reportlab.lib.utils import ImageReader
 
-# Output folder
-OUTPUT_DIR = "output"
-os.makedirs(OUTPUT_DIR, exist_ok=True)
+# ---- CONFIG ----
+os.makedirs("output", exist_ok=True)
 
-st.title("Company Logo Scraper + Background Remover")
+# ---- FUNCTIONS ----
 
-query = st.text_input("Enter Company Name or URL")
-submit = st.button("Get Transparent Logo")
+def get_logo_from_brandfetch(domain, brandfetch_api_key):
+    headers = {"Authorization": f"Bearer {brandfetch_api_key}"}
+    res = requests.get(f"https://api.brandfetch.io/v2/brands/{domain}", headers=headers)
+    if res.status_code != 200:
+        st.error("Brand not found on Brandfetch.")
+        return []
+    data = res.json()
+    return [fmt["src"] for logo in data["logos"] for fmt in logo["formats"] if fmt["format"] == "png"]
 
-def scrape_logo_url(query: str) -> str:
-    search_url = f"https://www.google.com/search?q={query}+logo&tbm=isch"
-    headers = {
-        "User-Agent": "Mozilla/5.0"
-    }
-    response = requests.get(search_url, headers=headers)
-    soup = BeautifulSoup(response.text, "html.parser")
-    img_tags = soup.find_all("img")
-    for img in img_tags:
-        src = img.get("src")
-        if src and "http" in src:
-            return src
-    return None
-
-def download_image(url: str) -> Image.Image:
+def download_image(url):
     response = requests.get(url)
     return Image.open(BytesIO(response.content)).convert("RGBA")
 
-def remove_background(image: Image.Image) -> str:
-    # Convert PIL Image to bytes
-    buffer = BytesIO()
-    image.save(buffer, format="PNG")
-    img_bytes = buffer.getvalue()
+def is_logo_bright(image):
+    grayscale = image.convert("L")
+    brightness = sum(grayscale.getdata()) / (grayscale.width * grayscale.height)
+    return brightness > 180  # brightness threshold
 
-    # Remove background
-    result = remove(img_bytes)
+def generate_product_image(product_type, background_color, openai_api_key):
+    openai.api_key = openai_api_key
+    prompt = f"{product_type} mockup, {background_color} background, minimal, flat view"
+    response = openai.images.generate(
+        model="dall-e-3",
+        prompt=prompt,
+        n=1,
+        size="1024x1024"
+    )
+    img_url = response.data[0].url
+    return download_image(img_url)
 
-    # Save result
-    filename = f"{uuid.uuid4()}.png"
-    output_path = os.path.join(OUTPUT_DIR, filename)
-    with open(output_path, "wb") as f:
-        f.write(result)
-    return output_path
+def overlay_logo(base_image, logo_image):
+    logo_size = int(min(base_image.width, base_image.height) * 0.2)
+    logo_resized = logo_image.resize((logo_size, logo_size))
+    position = (base_image.width - logo_size - 20, base_image.height - logo_size - 20)
+    base_image.paste(logo_resized, position, logo_resized)
+    return base_image
 
+def create_pdf(images, pdf_path="output/product_mockups.pdf"):
+    c = canvas.Canvas(pdf_path, pagesize=A4)
+    for img in images:
+        buffer = BytesIO()
+        img.save(buffer, format="PNG")
+        buffer.seek(0)
+        c.drawImage(ImageReader(buffer), 100, 300, width=300, height=300)
+        c.showPage()
+    c.save()
+    return pdf_path
 
-if submit and query:
-    with st.spinner("Processing..."):
-        try:
-            logo_url = scrape_logo_url(query)
-            if not logo_url:
-                st.error("No logo found. Try a different company name.")
-            else:
-                image = download_image(logo_url)
-                st.image(image, caption="Original Logo")
+# ---- STREAMLIT APP ----
 
-                output_path = remove_background(image)
-                st.success("Background removed!")
+st.title("🔧 Auto Product Mockup Generator")
 
-                st.image(output_path, caption="Transparent Logo")
-                with open(output_path, "rb") as file:
-                    btn = st.download_button(
-                        label="Download Transparent Logo",
-                        data=file,
-                        file_name=os.path.basename(output_path),
-                        mime="image/png"
-                    )
-        except Exception as e:
-            st.error(f"Error: {e}")
+brand = st.text_input("Enter company domain (e.g., nike.com)")
+brandfetch_key = st.text_input("Brandfetch API Key", type="password")
+openai_key = st.text_input("OpenAI API Key", type="password")
+run = st.button("Generate Mockups")
+
+if run and brand and brandfetch_key and openai_key:
+    with st.spinner("Fetching logo..."):
+        logos = get_logo_from_brandfetch(brand, brandfetch_key)
+        if not logos:
+            st.stop()
+        logos_images = [download_image(url) for url in logos]
+
+    main_logo = logos_images[0]
+    logo_brightness = is_logo_bright(main_logo)
+    bg_color = "black" if logo_brightness else "white"
+
+    products = ["t-shirt", "steel water bottle", "hat", "tote bag", "pen"]
+    final_images = []
+
+    st.header("🧢 Final Mockups")
+
+    for product, logo in zip(products, logos_images[:5]):
+        with st.spinner(f"Generating {product}..."):
+            base = generate_product_image(product, bg_color, openai_key)
+            result = overlay_logo(base, logo)
+            final_images.append(result)
+            st.image(result, caption=product)
+
+    with st.spinner("Creating downloadable PDF..."):
+        pdf_path = create_pdf(final_images)
+        with open(pdf_path, "rb") as f:
+            st.download_button("📄 Download Product Mockups PDF", f, file_name="mockups.pdf")
