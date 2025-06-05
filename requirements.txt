@@ -1,6 +1,8 @@
-streamlit
-requests
 beautifulsoup4
-pillow
 rembg
 onnxruntime
+streamlit
+openai
+requests
+pillow
+reportlab
