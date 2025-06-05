@@ -45,11 +45,25 @@ def generate_product_image(product_type, background_color, openai_api_key):
     return download_image(img_url)
 
 def overlay_logo(base_image, logo_image):
-    logo_size = int(min(base_image.width, base_image.height) * 0.2)
+    # Resize logo smaller and adjust opacity for realistic print effect
+    logo_size = int(base_image.width * 0.25)
     logo_resized = logo_image.resize((logo_size, logo_size))
-    position = (base_image.width - logo_size - 20, base_image.height - logo_size - 20)
-    base_image.paste(logo_resized, position, logo_resized)
+
+    # Optional: simulate print by reducing alpha slightly
+    if logo_resized.mode != 'RGBA':
+        logo_resized = logo_resized.convert('RGBA')
+    alpha = logo_resized.split()[3]
+    alpha = alpha.point(lambda p: p * 0.85)  # reduce transparency to simulate print
+    logo_resized.putalpha(alpha)
+
+    # Place logo higher on the product (e.g., center-top chest of t-shirt)
+    x = base_image.width // 2 - logo_size // 2
+    y = int(base_image.height * 0.2)
+
+    # Paste logo into base product
+    base_image.paste(logo_resized, (x, y), logo_resized)
     return base_image
+
 
 def create_pdf(images, pdf_path="output/product_mockups.pdf"):
     c = canvas.Canvas(pdf_path, pagesize=A4)
@@ -87,13 +101,25 @@ if run and brand and brandfetch_key and openai_key:
 
     st.header("🧢 Final Mockups")
 
-    for product, logo in zip(products, logos_images[:5]):
+
+    import random
+
+    # Adjust logo list to exactly 5
+    if len(logos_images) < 5:
+        logos_to_use = random.choices(logos_images, k=5)  # Reuse some logos
+    else:
+        logos_to_use = random.sample(logos_images, 5)     # Pick 5 unique
+    
+    for product, logo in zip(products, logos_to_use):    
         with st.spinner(f"Generating {product}..."):
             base = generate_product_image(product, bg_color, openai_key)
             result = overlay_logo(base, logo)
             final_images.append(result)
             st.image(result, caption=product)
 
+
+
+    
     with st.spinner("Creating downloadable PDF..."):
         pdf_path = create_pdf(final_images)
         with open(pdf_path, "rb") as f:
