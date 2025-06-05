@@ -35,7 +35,7 @@ def is_logo_bright(image):
 
 def generate_product_image(product_type, background_color, openai_api_key):
     openai.api_key = openai_api_key
-    prompt = f"{product_type} mockup, {background_color} background, minimal, flat view, make sure the images are realistic"
+    prompt = f"{product_type} mockup, {background_color} background,green color, minimal, flat view, make sure the images are realistic"
     response = openai.images.generate(
         model="dall-e-3",
         prompt=prompt,
@@ -48,7 +48,7 @@ def generate_product_image(product_type, background_color, openai_api_key):
 def generate_print_mockup(product_img: Image.Image, logo_img: Image.Image, product_type: str, openai_api_key: str):
     openai.api_key = openai_api_key
 
-    prompt = f"I want to print this {product_type} with print-on-demand. Place this logo naturally on the front of the {product_type} so it looks like a real product mockup. Make sure the logo is visible but not too big."
+    prompt = f"I want to print this {product_type} with print-on-demand. Place this logo naturally on the front right side of the {product_type} so it looks like a real product mockup. Make sure the logo is small."
 
     def img_to_bytes(img):
         buf = BytesIO()
