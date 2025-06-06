@@ -3,3 +3,4 @@ requests
 Pillow
 google-genai
 fpdf
+beautifulsoup4
