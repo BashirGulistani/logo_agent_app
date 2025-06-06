@@ -133,10 +133,12 @@ def render_and_enhance(templates, logo_urls, renderform_key, use_ai):
 
         if res.status_code == 200:
             image_url = res.json().get("href")
-            image_data = requests.get(image_url).content
-            mockup_path = f"{product_key}_mockup.png"
-            with open(mockup_path, "wb") as f:
-                f.write(image_data)
+            
+            img_data = requests.get(image_url).content
+            img = Image.open(BytesIO(img_data)).convert("RGB")
+            path = f"{product_key}_mockup.png"
+            img.save(path, format="PNG")
+
 
             final_path = enhance_image_with_gemini(product_key, mockup_path, use_ai)
             images_with_labels.append((final_path, product_key.capitalize()))
