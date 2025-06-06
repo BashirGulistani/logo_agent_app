@@ -4,7 +4,7 @@ import random
 from PIL import Image
 from io import BytesIO
 from google import generativeai as genai
-from google.genai import types
+from google.generativeai import types
 from fpdf import FPDF
 import os
 
