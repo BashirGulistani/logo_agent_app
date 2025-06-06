@@ -23,11 +23,11 @@ templates = [
         "dark_totebag": {"template_id": "greedy-orcs-pray-tightly-1486", "placeholder_id": "image_blackbag", "size": (287, 288)}
     },
     {
-        "light_pen": {"template_id": "bright-clams-cheer-promptly-1824", "placeholder_id": "image_whitepen", "size": (69, 67)},
-        "dark_pen": {"template_id": "icky-bookworms-hunt-often-1163", "placeholder_id": "image_pen", "size": (63, 62)}
+        "light_pen": {"template_id": "bright-clams-cheer-promptly-1824", "placeholder_id": "image_whitepen", "size": (192, 67)},
+        "dark_pen": {"template_id": "icky-bookworms-hunt-often-1163", "placeholder_id": "image_pen", "size": (140, 70)}
     },
     {
-        "light_hat": {"template_id": "tall-fauns-shiver-soon-1646", "placeholder_id": "image_whitehat", "size": (207, 206)},
+        "light_hat": {"template_id": "tall-fauns-shiver-soon-1646", "placeholder_id": "image_whitehat", "size": (217, 223)},
         "dark_hat": {"template_id": "dashing-hares-flap-loosely-1743", "placeholder_id": "image_blackhat", "size": (191, 190)}
     },
     {
@@ -68,8 +68,7 @@ def enhance_image_with_gemini(product_type, image_path):
     image = Image.open(image_path).convert("RGB")
     client = genai.Client(api_key=st.secrets["gemini_api_key"])
     prompt = (
-        f"Enhance this image and make the logo look naturally printed on the {product_type}, blending into the surface with fabric texture and realistic lighting.\n"
-        f"Do not crop, zoom in, zoom out, or change framing. Do not add new elements. Keep original layout unchanged."
+        "Enhance this image, add fabric texture and realistic lighting. It should look natural, and ready for print on direct-to-garment (DTG) printer"
     )
     response = client.models.generate_content(
         model="gemini-2.0-flash-preview-image-generation",
