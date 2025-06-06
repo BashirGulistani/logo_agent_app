@@ -185,7 +185,6 @@ use_ai = st.toggle("Enhance with AI", value=True)
 run = st.button("Generate Mockups")
 
 if run and brand_input:
-    # Handle both brand names
     if "." not in brand_input:
         resolved_domain = resolve_company_name_to_domain(brand_input)
         if resolved_domain:
