@@ -1,5 +1,5 @@
 streamlit
 requests
 Pillow
-genai
+google-genai
 fpdf
