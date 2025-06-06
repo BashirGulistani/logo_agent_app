@@ -53,14 +53,13 @@ def enhance_image_with_gemini(product_type, image_path):
     image = Image.open(image_path).convert("RGB")
     client = genai.Client(api_key=st.secrets["gemini_api_key"])
     prompt = (
-    f"This is a product mockup featuring a {product_type}. "
-    f"Please enhance the image without altering its layout, composition, perspective, or position of any element. "
-    f"Do not crop, zoom in, zoom out, rotate, or reposition anything. "
-    f"Keep the original framing and scene exactly as it is. "
-    f"The only thing you should do is blend the logo into the surface of the {product_type} so that it looks naturally printed. "
-    f"Adjust shadows, fabric texture, and lighting around the logo to make it appear realistically embedded — as if it were screen-printed or stitched onto the product. "
-    f"Do not regenerate or fabricate any parts. No changes other than visual enhancement of the logo’s realism."
+    f"This is a full mockup of a {product} with a logo on it. Do not zoom in on the logo or crop the image. Keep the entire product visible exactly as it is — do not change the camera angle, scale, framing, or aspect ratio. 
+    Your only task is to make the logo look naturally printed on the {product}. 
+    Blend it into the surface using appropriate lighting, shadows, and texture mapping.
+    Do not regenerate, reposition, or alter any other part of the image. 
+    Preserve the original image layout 100% and only enhance the realism of the logo's appearance."
 )
+
     response = client.models.generate_content(
         model="gemini-2.0-flash-preview-image-generation",
         contents=[prompt, image],
