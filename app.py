@@ -163,10 +163,10 @@ def create_pdf(images_with_labels, output_path="product_mockups.pdf"):
 
 # Streamlit UI
 st.set_page_config(page_title="Brand Logo Product Mockups")
-st.title("🧢 Logo Mockup Generator")
+st.title("Logo-Ready Product Mockup Generator")
 
 brand_input = st.text_input("Enter a brand domain (e.g., airbnb.com)")
-use_ai = st.toggle("Enhance with AI (Gemini)", value=True)
+use_ai = st.toggle("Enhance with AI", value=True)
 run = st.button("Generate Mockups")
 
 if run and brand_input:
