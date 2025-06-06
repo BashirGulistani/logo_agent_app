@@ -8,6 +8,7 @@ from google import genai
 from google.genai import types
 from fpdf import FPDF
 from bs4 import BeautifulSoup
+import re
 
 # templates
 templates = [
