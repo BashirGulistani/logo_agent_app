@@ -3,8 +3,8 @@ import requests
 import random
 from PIL import Image
 from io import BytesIO
-from google import generativeai as genai
-from google.generativeai import types
+from google import genai
+from google.genai import types
 from fpdf import FPDF
 import os
 
