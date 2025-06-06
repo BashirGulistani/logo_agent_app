@@ -1,8 +1,4 @@
-beautifulsoup4
-rembg
-onnxruntime
 streamlit
-openai
 requests
 pillow
-reportlab
+google-generativeai
