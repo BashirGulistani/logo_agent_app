@@ -136,8 +136,9 @@ def render_and_enhance(templates, logo_urls, renderform_key, use_ai):
             
             img_data = requests.get(image_url).content
             img = Image.open(BytesIO(img_data)).convert("RGB")
-            path = f"{product_key}_mockup.png"
-            img.save(path, format="PNG")
+            mockup_path = f"{product_key}_mockup.png"
+            img.save(mockup_path, format="PNG")
+
 
 
             final_path = enhance_image_with_gemini(product_key, mockup_path, use_ai)
