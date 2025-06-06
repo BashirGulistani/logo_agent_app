@@ -1,18 +1,15 @@
 import streamlit as st
 import requests
 import random
+import os
 from PIL import Image
 from io import BytesIO
-from fpdf import FPDF
-import os
 from google import genai
 from google.genai import types
+from fpdf import FPDF
+from bs4 import BeautifulSoup
 
-# ------------------- Configuration -------------------
-st.set_page_config(page_title="Brand Logo Mockups", layout="centered")
-st.title("🧢 Brand Product Mockup Generator")
-
-# ------------------- Templates -------------------
+# templates
 templates = [
     {
         "light_tshirt": {"template_id": "bad-doves-scare-yearly-1794", "placeholder_id": "logoLayer", "size": (295, 286)},
@@ -23,11 +20,11 @@ templates = [
         "dark_totebag": {"template_id": "greedy-orcs-pray-tightly-1486", "placeholder_id": "image_blackbag", "size": (287, 288)}
     },
     {
-        "light_pen": {"template_id": "bright-clams-cheer-promptly-1824", "placeholder_id": "image_whitepen", "size": (81, 80)},
-        "dark_pen": {"template_id": "icky-bookworms-hunt-often-1163", "placeholder_id": "image_pen", "size": (88, 87)}
+        "light_pen": {"template_id": "bright-clams-cheer-promptly-1824", "placeholder_id": "image_whitepen", "size": (69, 67)},
+        "dark_pen": {"template_id": "icky-bookworms-hunt-often-1163", "placeholder_id": "image_pen", "size": (63, 62)}
     },
     {
-        "light_hat": {"template_id": "tall-fauns-shiver-soon-1646", "placeholder_id": "image_whitehat", "size": (217, 223)},
+        "light_hat": {"template_id": "tall-fauns-shiver-soon-1646", "placeholder_id": "image_whitehat", "size": (207, 206)},
         "dark_hat": {"template_id": "dashing-hares-flap-loosely-1743", "placeholder_id": "image_blackhat", "size": (191, 190)}
     },
     {
@@ -36,7 +33,6 @@ templates = [
     }
 ]
 
-# ------------------- Helpers -------------------
 def is_logo_light(url):
     img = Image.open(BytesIO(requests.get(url).content)).convert("RGB")
     pixels = list(img.getdata())
@@ -45,115 +41,150 @@ def is_logo_light(url):
     return brightness > 30
 
 def resize_logo(url, size):
-    response = requests.get(url)
-    img = Image.open(BytesIO(response.content)).convert("RGBA")
+    img = Image.open(BytesIO(requests.get(url).content)).convert("RGBA")
     img = img.resize(size, Image.Resampling.LANCZOS)
     buffer = BytesIO()
     img.save(buffer, format="PNG")
     buffer.seek(0)
     return buffer
 
-def download_and_convert_to_png(image_url, save_path_png):
-    try:
-        response = requests.get(image_url)
-        response.raise_for_status()
-        img = Image.open(BytesIO(response.content)).convert("RGB")
-        img.save(save_path_png, "PNG")
-        return True
-    except Exception as e:
-        print(f"❌ Failed to download or convert image: {e}")
-        return False
+def enhance_image_with_gemini(product_type, image_path, use_ai=True):
+    if not use_ai:
+        return image_path
 
-def enhance_image_with_gemini(product_type, image_path):
     image = Image.open(image_path).convert("RGB")
     client = genai.Client(api_key=st.secrets["gemini_api_key"])
     prompt = (
         "Enhance this image, add fabric texture and realistic lighting. It should look natural, and ready for print on direct-to-garment (DTG) printer. Also, Enhance the appearance of the logo on the product in the image so that it looks naturally integrated and realistic. The logo should appear as if it was originally part of the product design and not added later. Consider the product's surface texture, how light interacts with both the product and the logo, and the perspective to ensure a seamless and believable integration."
     )
+
     response = client.models.generate_content(
         model="gemini-2.0-flash-preview-image-generation",
         contents=[prompt, image],
-        config=types.GenerateContentConfig(response_modalities=['TEXT', 'IMAGE'])
+        config=types.GenerateContentConfig(response_modalities=["TEXT", "IMAGE"])
     )
+
     for part in response.candidates[0].content.parts:
         if part.inline_data:
             enhanced_img = Image.open(BytesIO(part.inline_data.data))
-            enhanced_img.save(image_path)
+            enhanced_path = f"enhanced_{product_type}.png"
+            enhanced_img.save(enhanced_path)
+            return enhanced_path
+    return image_path
 
-# ------------------- PDF -------------------
-def create_pdf(images_with_labels, output_path="mockups.pdf"):
+def get_logo_from_brandfetch(domain, api_key):
+    headers = {"Authorization": f"Bearer {api_key}"}
+    r = requests.get(f"https://api.brandfetch.io/v2/brands/{domain}", headers=headers)
+    if r.status_code != 200:
+        return []
+    data = r.json()
+    urls = []
+    for logo in data.get("logos", []):
+        formats = logo.get("formats", [])
+        png_url = next((f["src"] for f in formats if f.get("format") == "png"), None)
+        jpg_url = next((f["src"] for f in formats if f.get("format") == "jpg"), None)
+        if png_url:
+            urls.append(png_url)
+        elif jpg_url:
+            urls.append(jpg_url)
+        if len(urls) >= 5:
+            break
+    return urls
+
+def fallback_scrape_logo(domain):
+    try:
+        response = requests.get(f"https://{domain}")
+        soup = BeautifulSoup(response.text, "html.parser")
+        logos = soup.find_all("img")
+        for img_tag in logos:
+            src = img_tag.get("src", "")
+            if "logo" in src.lower():
+                if src.startswith("http"):
+                    return [src]
+                else:
+                    return [f"https://{domain}/{src.lstrip('/')}"]
+    except Exception:
+        pass
+    return []
+
+def render_and_enhance(templates, logo_urls, renderform_key, use_ai):
+    images_with_labels = []
+
+    for template in templates:
+        product_key = list(template.keys())[0].split("_")[-1]
+        logo_url = random.choice(logo_urls)
+        logo_is_light = is_logo_light(logo_url)
+
+        key_prefix = "dark" if logo_is_light else "light"
+        selected_key = f"{key_prefix}_{product_key}"
+        product_template = template[selected_key]
+        resized_logo = resize_logo(logo_url, product_template["size"])
+
+        render_payload = {
+            "template": product_template["template_id"],
+            "data": {f"{product_template['placeholder_id']}.src": logo_url}
+        }
+
+        res = requests.post(
+            "https://get.renderform.io/api/v2/render",
+            headers={"X-API-KEY": renderform_key, "Content-Type": "application/json"},
+            json=render_payload
+        )
+
+        if res.status_code == 200:
+            image_url = res.json().get("href")
+            image_data = requests.get(image_url).content
+            mockup_path = f"{product_key}_mockup.png"
+            with open(mockup_path, "wb") as f:
+                f.write(image_data)
+
+            final_path = enhance_image_with_gemini(product_key, mockup_path, use_ai)
+            images_with_labels.append((final_path, product_key.capitalize()))
+        else:
+            st.error(f"Failed to render {product_key}")
+    return images_with_labels
+
+def create_pdf(images_with_labels):
     pdf = FPDF()
     for path, label in images_with_labels:
-        if not os.path.exists(path):
-            continue
+        if not path.lower().endswith(".png"):
+            img = Image.open(path)
+            png_path = path.rsplit(".", 1)[0] + ".png"
+            img.save(png_path, "PNG")
+            path = png_path
+
         pdf.add_page()
-        pdf.set_font("Arial", size=14)
-        pdf.set_xy(20, 15)
-        pdf.cell(0, 10, txt=label, ln=1)
+        pdf.set_font("Arial", size=16)
+        pdf.cell(200, 10, txt=label, ln=True, align="C")
         pdf.image(path, x=20, y=30, w=170)
-    pdf.output(output_path)
-    return output_path
+    pdf_path = "mockup_results.pdf"
+    pdf.output(pdf_path)
+    return pdf_path
 
-# ------------------- Main App -------------------
-brand = st.text_input("Enter Brand Name or Domain (e.g., airbnb.com)")
-ai_toggle = st.toggle("✨ AI Enhance Logo Placement")
+# Streamlit UI
+st.set_page_config(page_title="Brand Logo Product Mockups")
+st.title("🧢 Logo Mockup Generator")
 
-if st.button("Generate Mockups") and brand:
-    with st.spinner("Fetching logos and rendering mockups..."):
-        # Get logos
-        headers = {"Authorization": f"Bearer {st.secrets['brandfetch_api_key']}"}
-        r = requests.get(f"https://api.brandfetch.io/v2/brands/{brand}", headers=headers)
-        data = r.json()
+brand_input = st.text_input("Enter a brand domain (e.g., airbnb.com)")
+use_ai = st.toggle("Enhance with AI (Gemini)", value=True)
+run = st.button("Generate Mockups")
 
-        logo_urls = []
-        for logo in data.get("logos", []):
-            formats = logo.get("formats", [])
-            png_url = next((f["src"] for f in formats if f.get("format") == "png"), None)
-            jpg_url = next((f["src"] for f in formats if f.get("format") == "jpg"), None)
-            if png_url:
-                logo_urls.append(png_url)
-            elif jpg_url:
-                logo_urls.append(jpg_url)
-            if len(logo_urls) >= 5:
-                break
+if run and brand_input:
+    logo_urls = get_logo_from_brandfetch(brand_input, st.secrets["brandfetch_api_key"])
+    if not logo_urls:
+        st.warning("Brandfetch failed, trying to scrape logo from website...")
+        logo_urls = fallback_scrape_logo(brand_input)
 
-        images_with_labels = []
-
-        # Generate mockups
-        for template in templates:
-            product_key = list(template.keys())[0].split("_")[-1]
-            logo_url = random.choice(logo_urls)
-            logo_is_light = is_logo_light(logo_url)
-            key_prefix = "dark" if logo_is_light else "light"
-            selected_key = f"{key_prefix}_{product_key}"
-            product_template = template[selected_key]
-            resized_logo = resize_logo(logo_url, product_template["size"])
-
-            render_payload = {
-                "template": product_template["template_id"],
-                "data": {
-                    f"{product_template['placeholder_id']}.src": logo_url
-                }
-            }
-
-            res = requests.post(
-                "https://get.renderform.io/api/v2/render",
-                headers={
-                    "X-API-KEY": st.secrets["renderform_api_key"],
-                    "Content-Type": "application/json"
-                },
-                json=render_payload
-            )
-
-            if res.status_code == 200:
-                image_url = res.json().get("href")
-                path = f"{product_key}_mockup_converted.png"
-                if download_and_convert_to_png(image_url, path):
-                    if ai_toggle:
-                        enhance_image_with_gemini(product_key, path)
-                    images_with_labels.append((path, f"{product_key.title()} Mockup"))
-
-        # Generate PDF
+    if not logo_urls:
+        st.error("No logo found.")
+    else:
+        st.info("Generating mockups...")
+        images_with_labels = render_and_enhance(templates, logo_urls, st.secrets["renderform_api_key"], use_ai)
         pdf_path = create_pdf(images_with_labels)
+        st.success("PDF created successfully!")
         with open(pdf_path, "rb") as f:
-            st.download_button("📄 Download PDF", f, file_name="mockups.pdf")
+            st.download_button("Download PDF", f, file_name="mockups.pdf")
+
+
+
+
