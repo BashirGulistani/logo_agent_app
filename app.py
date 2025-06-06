@@ -144,22 +144,19 @@ def render_and_enhance(templates, logo_urls, renderform_key, use_ai):
             st.error(f"Failed to render {product_key}")
     return images_with_labels
 
-def create_pdf(images_with_labels):
+def create_pdf(images_with_labels, output_path="product_mockups.pdf"):
     pdf = FPDF()
-    for path, label in images_with_labels:
-        if not path.lower().endswith(".png"):
-            img = Image.open(path)
-            png_path = path.rsplit(".", 1)[0] + ".png"
-            img.save(png_path, "PNG")
-            path = png_path
+    for path, caption in images_with_labels:
+        img = Image.open(path).convert("RGB")
+        corrected_path = path.replace(".jpg", ".png").replace(".jpeg", ".png")
+        img.save(corrected_path, format="PNG")
 
         pdf.add_page()
-        pdf.set_font("Arial", size=16)
-        pdf.cell(200, 10, txt=label, ln=True, align="C")
-        pdf.image(path, x=20, y=30, w=170)
-    pdf_path = "mockup_results.pdf"
-    pdf.output(pdf_path)
-    return pdf_path
+        pdf.set_font("Arial", size=14)
+        pdf.cell(200, 10, txt=caption, ln=True, align='C')
+        pdf.image(corrected_path, x=20, y=30, w=170)
+    pdf.output(output_path)
+    return output_path
 
 # Streamlit UI
 st.set_page_config(page_title="Brand Logo Product Mockups")
