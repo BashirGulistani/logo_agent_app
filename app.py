@@ -1,124 +1,163 @@
-import os
-import uuid
-import random
-import requests
-import openai
 import streamlit as st
-from io import BytesIO
+import requests
+import random
 from PIL import Image
-from reportlab.pdfgen import canvas
-from reportlab.lib.pagesizes import A4
-from reportlab.lib.utils import ImageReader
+from io import BytesIO
+from google import genai
+from google.genai import types
+from fpdf import FPDF
+import os
 
-# Create output dir
-os.makedirs("output", exist_ok=True)
+# Define your templates
+templates = [
+    {
+        "light_tshirt": {"template_id": "bad-doves-scare-yearly-1794", "placeholder_id": "logoLayer", "size": (295, 286)},
+        "dark_tshirt": {"template_id": "rebel-hedgehogs-walk-ably-1675", "placeholder_id": "image_blackshirt", "size": (299, 296)}
+    },
+    {
+        "light_totebag": {"template_id": "bad-dogs-behave-cruelly-1636", "placeholder_id": "image_whitebag", "size": (298, 291)},
+        "dark_totebag": {"template_id": "greedy-orcs-pray-tightly-1486", "placeholder_id": "image_blackbag", "size": (287, 288)}
+    },
+    {
+        "light_pen": {"template_id": "bright-clams-cheer-promptly-1824", "placeholder_id": "image_whitepen", "size": (69, 67)},
+        "dark_pen": {"template_id": "icky-bookworms-hunt-often-1163", "placeholder_id": "image_pen", "size": (63, 62)}
+    },
+    {
+        "light_hat": {"template_id": "tall-fauns-shiver-soon-1646", "placeholder_id": "image_whitehat", "size": (207, 206)},
+        "dark_hat": {"template_id": "dashing-hares-flap-loosely-1743", "placeholder_id": "image_blackhat", "size": (191, 190)}
+    },
+    {
+        "light_bottle": {"template_id": "filthy-oxen-hang-loudly-1802", "placeholder_id": "image_whitebottle", "size": (156, 156)},
+        "dark_bottle": {"template_id": "zany-monkeys-slap-bravely-1525", "placeholder_id": "image_blackbottle", "size": (191, 192)}
+    }
+]
 
-# ---- UTIL FUNCTIONS ----
+# Helper functions
+def is_logo_light(url):
+    img = Image.open(BytesIO(requests.get(url).content)).convert("RGB")
+    pixels = list(img.getdata())
+    avg = tuple(sum(x) / len(x) for x in zip(*pixels))
+    brightness = sum(avg) / 3
+    return brightness > 30
 
-def get_logo_from_brandfetch(domain, brandfetch_api_key):
-    headers = {"Authorization": f"Bearer {brandfetch_api_key}"}
-    res = requests.get(f"https://api.brandfetch.io/v2/brands/{domain}", headers=headers)
-    if res.status_code != 200:
-        st.error("Brand not found on Brandfetch.")
-        return []
-    data = res.json()
-    return [fmt["src"] for logo in data["logos"] for fmt in logo["formats"] if fmt["format"] == "png"]
-
-def download_image(url):
+def resize_logo(url, size):
     response = requests.get(url)
-    return Image.open(BytesIO(response.content)).convert("RGBA")
+    img = Image.open(BytesIO(response.content)).convert("RGBA")
+    img = img.resize(size, Image.Resampling.LANCZOS)
+    buffer = BytesIO()
+    img.save(buffer, format="PNG")
+    buffer.seek(0)
+    return buffer
 
-def is_logo_bright(image):
-    grayscale = image.convert("L")
-    brightness = sum(grayscale.getdata()) / (grayscale.width * grayscale.height)
-    return brightness > 180
-
-def generate_product_image(product_type, background_color, openai_api_key):
-    openai.api_key = openai_api_key
-    prompt = f"{product_type} mockup, {background_color} background,green color, minimal, flat view, make sure the images are realistic"
-    response = openai.images.generate(
-        model="dall-e-3",
-        prompt=prompt,
-        n=1,
-        size="1024x1024"
+def enhance_image_with_gemini(product_type, image_path):
+    image = Image.open(image_path).convert("RGB")
+    client = genai.Client(api_key=st.secrets["gemini_api_key"])
+    prompt = (
+        f"Enhance this image and make the logo look naturally printed on the {product_type}, blending into the surface with fabric texture and realistic lighting. DO NOT CROP, DO NOT ZOOM IN, DO NOT ZOOM OUT. Maintain full original framing and layout."
     )
-    img_url = response.data[0].url
-    return download_image(img_url)
-
-def generate_print_mockup(product_img: Image.Image, logo_img: Image.Image, product_type: str, openai_api_key: str):
-    openai.api_key = openai_api_key
-
-    prompt = f"I want to print this {product_type} with print-on-demand. Place this logo naturally on the front right side of the {product_type} so it looks like a real product mockup. Make sure the logo is small."
-
-    def img_to_bytes(img):
-        buf = BytesIO()
-        img.save(buf, format="PNG")
-        buf.seek(0)
-        return buf
-
-    product_bytes = img_to_bytes(product_img)
-    logo_bytes = img_to_bytes(logo_img)
-
-    # ✳️ Requires OpenAI's image editing capabilities with image+prompt input.
-    response = openai.images.edit(
-        prompt=prompt,
-        image=product_bytes,
-        mask=None,  # No mask, let it place freely
-        n=1,
-        size="1024x1024"
+    response = client.models.generate_content(
+        model="gemini-2.0-flash-preview-image-generation",
+        contents=[prompt, image],
+        config=types.GenerateContentConfig(
+            response_modalities=['TEXT', 'IMAGE']
+        )
     )
-    result_url = response['data'][0]['url']
-    return download_image(result_url)
 
-def create_pdf(images, pdf_path="output/product_mockups.pdf"):
-    c = canvas.Canvas(pdf_path, pagesize=A4)
-    for img in images:
-        buffer = BytesIO()
-        img.save(buffer, format="PNG")
-        buffer.seek(0)
-        c.drawImage(ImageReader(buffer), 100, 300, width=300, height=300)
-        c.showPage()
-    c.save()
+    for part in response.candidates[0].content.parts:
+        if part.inline_data:
+            enhanced_img = Image.open(BytesIO(part.inline_data.data))
+            enhanced_path = f"enhanced_{product_type}.png"
+            enhanced_img.save(enhanced_path)
+            return enhanced_path
+    return None
+
+def render_and_enhance(templates, logo_urls, renderform_key):
+    image_paths = []
+    for template in templates:
+        product_key = list(template.keys())[0].split("_")[-1]
+        logo_url = random.choice(logo_urls)
+        logo_is_light = is_logo_light(logo_url)
+
+        key_prefix = "dark" if logo_is_light else "light"
+        selected_key = f"{key_prefix}_{product_key}"
+        product_template = template[selected_key]
+        resized_logo = resize_logo(logo_url, product_template["size"])
+
+        render_payload = {
+            "template": product_template["template_id"],
+            "data": {
+                f"{product_template['placeholder_id']}.src": logo_url
+            }
+        }
+
+        res = requests.post(
+            "https://get.renderform.io/api/v2/render",
+            headers={
+                "X-API-KEY": renderform_key,
+                "Content-Type": "application/json"
+            },
+            json=render_payload
+        )
+
+        if res.status_code == 200:
+            image_url = res.json().get("href")
+            img_data = requests.get(image_url).content
+            path = f"{product_key}_mockup.png"
+            with open(path, "wb") as f:
+                f.write(img_data)
+
+            enhanced_path = enhance_image_with_gemini(product_key, path)
+            if enhanced_path:
+                image_paths.append((enhanced_path, product_key.capitalize()))
+        else:
+            st.warning(f"Render failed: {res.status_code} - {res.text}")
+    return image_paths
+
+def generate_pdf(images):
+    pdf = FPDF()
+    for img_path, caption in images:
+        pdf.add_page()
+        pdf.set_font("Arial", size=16)
+        pdf.cell(200, 10, txt=caption, ln=True, align="C")
+        pdf.image(img_path, x=10, y=30, w=180)
+    pdf_path = "product_mockups.pdf"
+    pdf.output(pdf_path)
     return pdf_path
 
-# ---- STREAMLIT APP ----
+# Streamlit UI
+st.title("Brand Product Mockup Generator")
+brand = st.text_input("Enter brand URL or name (e.g., airbnb.com)")
 
-st.title("🛍️ Product Mockup Generator with Print-Ready Logos")
-
-brand = st.text_input("Enter company domain (e.g., nike.com)")
-brandfetch_key = st.text_input("Brandfetch API Key", type="password")
-openai_key = st.text_input("OpenAI API Key", type="password")
-run = st.button("Generate Mockups")
-
-if run and brand and brandfetch_key and openai_key:
-    with st.spinner("Fetching logos..."):
-        logos = get_logo_from_brandfetch(brand, brandfetch_key)
-        if not logos:
-            st.stop()
-        logos_images = [download_image(url) for url in logos]
-
-    main_logo = logos_images[0]
-    bg_color = "black" if is_logo_bright(main_logo) else "white"
-
-    # Adjust logos for 5 products
-    if len(logos_images) < 5:
-        logos_to_use = random.choices(logos_images, k=5)
+if st.button("Generate Mockups"):
+    if not brand:
+        st.error("Please enter a brand name or domain.")
     else:
-        logos_to_use = random.sample(logos_images, 5)
+        with st.spinner("Fetching logos and generating mockups..."):
+            brandfetch_api_key = st.secrets["brandfetch_api_key"]
+            renderform_api_key = st.secrets["renderform_api_key"]
 
-    products = ["t-shirt", "steel water bottle", "hat", "tote bag", "pen"]
-    final_images = []
+            headers = {"Authorization": f"Bearer {brandfetch_api_key}"}
+            r = requests.get(f"https://api.brandfetch.io/v2/brands/{brand}", headers=headers)
 
-    st.header("🧢 Final Print-On-Demand Mockups")
+            if r.status_code != 200:
+                st.error("Failed to fetch logos from Brandfetch.")
+            else:
+                data = r.json()
+                logo_urls = []
+                for logo in data.get("logos", []):
+                    formats = logo.get("formats", [])
+                    png_url = next((f["src"] for f in formats if f.get("format") == "png"), None)
+                    jpg_url = next((f["src"] for f in formats if f.get("format") == "jpg"), None)
+                    if png_url:
+                        logo_urls.append(png_url)
+                    elif jpg_url:
+                        logo_urls.append(jpg_url)
+                    if len(logo_urls) >= 5:
+                        break
 
-    for product, logo in zip(products, logos_to_use):
-        with st.spinner(f"Creating {product}..."):
-            base_product = generate_product_image(product, bg_color, openai_key)
-            final = generate_print_mockup(base_product, logo, product, openai_key)
-            final_images.append(final)
-            st.image(final, caption=product)
+                image_paths = render_and_enhance(templates, logo_urls, renderform_api_key)
 
-    with st.spinner("Creating downloadable PDF..."):
-        pdf_path = create_pdf(final_images)
-        with open(pdf_path, "rb") as f:
-            st.download_button("📄 Download Product Mockups PDF", f, file_name="mockups.pdf")
+                if image_paths:
+                    pdf_path = generate_pdf(image_paths)
+                    with open(pdf_path, "rb") as f:
+                        st.download_button("Download Mockup PDF", f, file_name="mockups.pdf")
