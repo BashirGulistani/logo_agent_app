@@ -161,15 +161,38 @@ def create_pdf(images_with_labels, output_path="product_mockups.pdf"):
     pdf.output(output_path)
     return output_path
 
+def resolve_company_name_to_domain(name):
+    query = f"{name} official site"
+    headers = {"User-Agent": "Mozilla/5.0"}
+    url = f"https://duckduckgo.com/html/?q={query}"
+
+    res = requests.get(url, headers=headers)
+    matches = re.findall(r'https?://(www\.)?([\w\-]+\.\w+)', res.text)
+    if matches:
+        domain = matches[0][1]
+        return domain
+    else:
+        return None
+
+
 # Streamlit UI
 st.set_page_config(page_title="Brand Logo Product Mockups")
 st.title("Logo-Ready Product Mockup Generator")
 
-brand_input = st.text_input("Enter a brand domain (e.g., airbnb.com)")
+brand_input = st.text_input("Enter a brand name or domain (e.g., Airbnb or airbnb.com)")
 use_ai = st.toggle("Enhance with AI", value=True)
 run = st.button("Generate Mockups")
 
 if run and brand_input:
+    # Handle both brand names and domains
+    if "." not in brand_input:
+        resolved_domain = resolve_company_name_to_domain(brand_input)
+        if resolved_domain:
+            brand_input = resolved_domain
+        else:
+            st.error("Could not resolve company name to a domain. Please try entering a domain like airbnb.com.")
+            st.stop()
+
     logo_urls = get_logo_from_brandfetch(brand_input, st.secrets["brandfetch_api_key"])
     if not logo_urls:
         st.warning("Brandfetch failed, trying to scrape logo from website...")
