@@ -55,7 +55,7 @@ def enhance_image_with_gemini(product_type, image_path, use_ai=True):
     image = Image.open(image_path).convert("RGB")
     client = genai.Client(api_key=st.secrets["gemini_api_key"])
     prompt = (
-        "Enhance this image, add fabric texture and realistic lighting. It should look natural, and ready for print on direct-to-garment (DTG) printer. Also, Enhance the appearance of the logo on the product in the image so that it looks naturally integrated and realistic. The logo should appear as if it was originally part of the product design and not added later. Consider the product's surface texture, how light interacts with both the product and the logo, and the perspective to ensure a seamless and believable integration."
+        "Enhance this image, add fabric texture and realistic lighting. It should look natural, and ready for print on direct-to-garment (DTG) printer. Also, the logo should appear as if it was originally part of the product design. Consider the product's surface texture, how light interacts with both the product and the logo, and the perspective to ensure a seamless and believable integration."
     )
 
     response = client.models.generate_content(
