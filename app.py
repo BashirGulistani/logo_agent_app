@@ -22,8 +22,8 @@ templates = [
         "dark_totebag": {"template_id": "greedy-orcs-pray-tightly-1486", "placeholder_id": "image_blackbag", "size": (287, 288)}
     },
     {
-        "light_pen": {"template_id": "bright-clams-cheer-promptly-1824", "placeholder_id": "image_whitepen", "size": (69, 67)},
-        "dark_pen": {"template_id": "icky-bookworms-hunt-often-1163", "placeholder_id": "image_pen", "size": (63, 62)}
+        "light_mug": {"template_id": "jazzy-guinea pigs-travel-gently-1653", "placeholder_id": "image_whitemug", "size": (353, 358)},
+        "dark_mug": {"template_id": "red-unicorns-hunt-rudely-1857", "placeholder_id": "image_blackmug", "size": (512, 512)}
     },
     {
         "light_hat": {"template_id": "tall-fauns-shiver-soon-1646", "placeholder_id": "image_whitehat", "size": (207, 206)},
