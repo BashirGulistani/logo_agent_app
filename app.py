@@ -405,8 +405,8 @@ st.markdown("""
 
     /* Warnings/info blocks */
     .stAlert {
-        border-left: 5px solid #1abc9c !important;
-        background-color: #ecf0f1 !important;
+        border-left: 5px solid #f3f6f4 !important;
+        background-color: #1abc9c !important;
     }
 
     footer {
