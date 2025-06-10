@@ -92,21 +92,55 @@ def get_logo_from_brandfetch(domain, api_key):
             break
     return urls
 
-def fallback_scrape_logo(domain):
+def is_valid_image_url(url):
     try:
-        response = requests.get(f"https://{domain}")
-        soup = BeautifulSoup(response.text, "html.parser")
-        logos = soup.find_all("img")
-        for img_tag in logos:
-            src = img_tag.get("src", "")
-            if "logo" in src.lower():
-                if src.startswith("http"):
-                    return [src]
-                else:
-                    return [f"https://{domain}/{src.lstrip('/')}"]
-    except Exception:
-        pass
-    return []
+        response = requests.head(url, allow_redirects=True, timeout=5)
+        if response.status_code == 200:
+            content_type = response.headers.get('content-type', '').lower()
+            if content_type.startswith('image/'):
+                return True
+    except requests.exceptions.RequestException:
+        return False
+    return False
+
+def fallback_scrape_logo(domain):
+    base_url = f"https://{domain}"
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+    }
+
+    try:
+        response = requests.get(base_url, headers=headers, timeout=10)
+        response.raise_for_status()
+    except requests.exceptions.RequestException:
+        return []
+
+    soup = BeautifulSoup(response.text, "html.parser")
+    candidate_urls = []
+
+    for img_tag in soup.find_all("img"):
+        src = img_tag.get("src")
+        if not src:
+            continue
+        alt_text = img_tag.get("alt", "").lower()
+        class_text = " ".join(img_tag.get("class", [])).lower()
+        if "logo" in alt_text or "logo" in class_text or "logo" in src.lower():
+            candidate_urls.append(urljoin(base_url, src))
+
+    for link_tag in soup.find_all("link", rel=re.compile("icon", re.I)):
+        href = link_tag.get("href")
+        if href:
+            candidate_urls.append(urljoin(base_url, href))
+
+    valid_logo_urls = []
+    for url in dict.fromkeys(candidate_urls):
+        if is_valid_image_url(url):
+            valid_logo_urls.append(url)
+
+    return valid_logo_urls
+
+
+
 
 def render_and_enhance(templates, logo_urls, renderform_key, use_ai):
     images_with_labels = []
