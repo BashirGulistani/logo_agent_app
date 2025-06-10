@@ -230,19 +230,97 @@ def render_and_enhance(templates, logo_urls, renderform_key, use_ai):
             st.error(f"Failed to render {product_key}")
     return images_with_labels
 
-def create_pdf(images_with_labels, output_path="product_mockups.pdf"):
-    pdf = FPDF()
-    for path, caption in images_with_labels:
-        img = Image.open(path).convert("RGB")
-        corrected_path = path.replace(".jpg", ".png").replace(".jpeg", ".png")
-        img.save(corrected_path, format="PNG")
 
+class StyledPDF(FPDF):
+    def header(self):
+        self.set_fill_color(240, 240, 255)
+        self.rect(0, 0, 210, 20, 'F')
+        self.set_font("Helvetica", "B", 16)
+        self.set_text_color(40, 40, 90)
+        self.cell(0, 10, "VIBRON SHOP", ln=True, align="C")
+
+    def footer(self):
+        self.set_y(-20)
+        self.set_draw_color(200, 200, 200)
+        self.line(10, self.get_y(), 200, self.get_y())
+        self.set_font("Helvetica", size=9)
+        self.set_text_color(120, 120, 120)
+        self.cell(0, 10, "© Vibron Shop - Premium Branded Merchandise | www.vibronshop.com", align="C")
+
+def create_pdf(images_with_labels, output_path="product_mockups.pdf"):
+    pdf = StyledPDF()
+    product_price = "$24.99"
+    product_colors = [
+        "#000000", "#FFFFFF", "#FF5733", "#33C1FF", "#28A745",
+        "#FFC107", "#8E44AD", "#E91E63", "#607D8B", "#795548"
+    ]
+
+    for path, caption in images_with_labels:
         pdf.add_page()
-        pdf.set_font("Arial", size=14)
-        pdf.cell(200, 10, txt=caption, ln=True, align='C')
-        pdf.image(corrected_path, x=20, y=30, w=170)
+
+        # Product name
+        pdf.set_font("Helvetica", "B", 18)
+        pdf.set_text_color(0, 0, 0)
+        pdf.cell(0, 20, f"{caption} Collection", ln=True, align="C")
+
+        # Product image
+        pdf.image(path, x=30, y=35, w=150)
+
+        # Price
+        pdf.set_xy(30, 140)
+        pdf.set_font("Helvetica", "B", 16)
+        pdf.set_text_color(255, 87, 51)
+        pdf.cell(0, 10, f"Only {product_price}", ln=True)
+
+        # Color swatches
+        pdf.set_xy(30, 155)
+        pdf.set_font("Helvetica", size=12)
+        pdf.set_text_color(0, 0, 0)
+        pdf.cell(0, 10, "Available Colors:", ln=True)
+
+        x_start = 30
+        y_start = 165
+        swatch_size = 12
+        spacing = 16
+
+        for i, hex_color in enumerate(product_colors):
+            r = int(hex_color[1:3], 16)
+            g = int(hex_color[3:5], 16)
+            b = int(hex_color[5:7], 16)
+            x = x_start + i * spacing
+            pdf.set_fill_color(r, g, b)
+            pdf.rect(x, y_start, swatch_size, swatch_size, style='F')
+
+        # Description
+        pdf.set_xy(30, 190)
+        pdf.set_font("Helvetica", size=11)
+        pdf.set_text_color(60, 60, 60)
+        description = (
+            "Elevate your brand with this high-quality product. Perfectly printed with your logo, "
+            "available in multiple vibrant colors. Ideal for everyday use or as a promotional giveaway."
+        )
+        pdf.multi_cell(150, 8, description)
+
     pdf.output(output_path)
     return output_path
+
+
+
+
+def is_valid_domain_format(domain):
+    """
+    Ensures domain is of the form name.com or sub-name.org, without protocol, path, or port.
+    """
+    # Strip whitespace and lowercase
+    domain = domain.strip().lower()
+
+    # Disallow protocols, ports, slashes
+    if domain.startswith("http://") or domain.startswith("https://") or "/" in domain or ":" in domain:
+        return False
+
+    # Check for something like name.com, name.co.uk, etc.
+    return bool(re.fullmatch(r"[\w\-]+\.[\w\.\-]+", domain))
+
 
 def resolve_company_name_to_domain(name):
     query = f"{name} official site"
@@ -267,13 +345,14 @@ use_ai = st.toggle("Enhance with AI", value=True)
 run = st.button("Generate Mockups")
 
 if run and brand_input:
-    if "." not in brand_input:
+    if not is_valid_domain_format(brand_input):
         resolved_domain = resolve_company_name_to_domain(brand_input)
-        if resolved_domain:
+        if resolved_domain and is_valid_domain_format(resolved_domain):
             brand_input = resolved_domain
         else:
-            st.error("Could not resolve company name to a domain. Please try entering a domain like airbnb.com.")
+            st.error("Please enter a valid domain like airbnb.com.")
             st.stop()
+
 
     logo_urls = get_logo_from_brandfetch(brand_input, st.secrets["brandfetch_api_key"])
     if not logo_urls:
