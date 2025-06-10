@@ -314,7 +314,7 @@ def create_pdf(images_with_labels, output_path="client_ready_mockups.pdf"):
         pdf.set_xy(10, 250)
         pdf.set_font("Helvetica", size=10)
         pdf.set_text_color(80, 80, 80)
-        pdf.cell(0, 6, "To place an order, contact: orders@vibronshop.com or visit vibronshop.com/order", align='C')
+        pdf.cell(0, 6, "To place an order, contact: behappy@inkdstores.com or visit inkdstores.com", align='C')
 
     pdf.output(output_path)
     return output_path
