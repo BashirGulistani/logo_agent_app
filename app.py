@@ -10,6 +10,7 @@ from fpdf import FPDF
 from bs4 import BeautifulSoup
 import re
 from urllib.parse import urljoin, urlparse
+
 # templates
 templates = [
     {
