@@ -231,25 +231,8 @@ def render_and_enhance(templates, logo_urls, renderform_key, use_ai):
     return images_with_labels
 
 
-class StyledPDF(FPDF):
-    def header(self):
-        self.set_fill_color(240, 240, 255)
-        self.rect(0, 0, 210, 20, 'F')
-        self.set_font("Helvetica", "B", 16)
-        self.set_text_color(40, 40, 90)
-        self.cell(0, 10, "VIBRON SHOP", ln=True, align="C")
-
-    def footer(self):
-        self.set_y(-20)
-        self.set_draw_color(200, 200, 200)
-        self.line(10, self.get_y(), 200, self.get_y())
-        self.set_font("Helvetica", size=9)
-        self.set_text_color(120, 120, 120)
-        self.cell(0, 10, "© Vibron Shop - Premium Branded Merchandise | www.vibronshop.com", align="C")
-
 def create_pdf(images_with_labels, output_path="product_mockups.pdf"):
-    pdf = StyledPDF()
-    product_price = "$24.99"
+    pdf = FPDF()
     product_colors = [
         "#000000", "#FFFFFF", "#FF5733", "#33C1FF", "#28A745",
         "#FFC107", "#8E44AD", "#E91E63", "#607D8B", "#795548"
@@ -258,28 +241,23 @@ def create_pdf(images_with_labels, output_path="product_mockups.pdf"):
     for path, caption in images_with_labels:
         pdf.add_page()
 
-        # Product name
+        # Product Title
         pdf.set_font("Helvetica", "B", 18)
         pdf.set_text_color(0, 0, 0)
-        pdf.cell(0, 20, f"{caption} Collection", ln=True, align="C")
+        pdf.cell(0, 15, txt=f"{caption} Edition", ln=True, align='C')
 
-        # Product image
-        pdf.image(path, x=30, y=35, w=150)
+        # Product Image
+        pdf.image(path, x=30, y=30, w=150)
 
-        # Price
-        pdf.set_xy(30, 140)
-        pdf.set_font("Helvetica", "B", 16)
-        pdf.set_text_color(255, 87, 51)
-        pdf.cell(0, 10, f"Only {product_price}", ln=True)
-
-        # Color swatches
-        pdf.set_xy(30, 155)
+        # Color Label
+        pdf.set_xy(30, 160)
         pdf.set_font("Helvetica", size=12)
         pdf.set_text_color(0, 0, 0)
-        pdf.cell(0, 10, "Available Colors:", ln=True)
+        pdf.cell(0, 10, txt="Available Colors:", ln=True)
 
+        # Color Swatches
         x_start = 30
-        y_start = 165
+        y_start = 170
         swatch_size = 12
         spacing = 16
 
@@ -291,19 +269,12 @@ def create_pdf(images_with_labels, output_path="product_mockups.pdf"):
             pdf.set_fill_color(r, g, b)
             pdf.rect(x, y_start, swatch_size, swatch_size, style='F')
 
-        # Description
-        pdf.set_xy(30, 190)
-        pdf.set_font("Helvetica", size=11)
-        pdf.set_text_color(60, 60, 60)
-        description = (
-            "Elevate your brand with this high-quality product. Perfectly printed with your logo, "
-            "available in multiple vibrant colors. Ideal for everyday use or as a promotional giveaway."
-        )
-        pdf.multi_cell(150, 8, description)
+        # Optional: divider line
+        pdf.set_draw_color(220, 220, 220)
+        pdf.line(10, 190, 200, 190)
 
     pdf.output(output_path)
     return output_path
-
 
 
 
