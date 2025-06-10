@@ -2,13 +2,14 @@ import streamlit as st
 import requests
 import random
 import os
-from PIL import Image
+from PIL import Image, UnidentifiedImageError
 from io import BytesIO
 from google import genai
 from google.genai import types
 from fpdf import FPDF
 from bs4 import BeautifulSoup
 import re
+from urllib.parse import urljoin
 
 # templates
 templates = [
