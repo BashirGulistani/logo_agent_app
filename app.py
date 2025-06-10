@@ -10,6 +10,7 @@ from fpdf import FPDF
 from bs4 import BeautifulSoup
 import re
 from urllib.parse import urljoin, urlparse
+import cairosvg
 
 # templates
 templates = [
@@ -36,19 +37,51 @@ templates = [
 ]
 
 def is_logo_light(url):
-    img = Image.open(BytesIO(requests.get(url).content)).convert("RGB")
-    pixels = list(img.getdata())
-    avg = tuple(sum(x) / len(x) for x in zip(*pixels))
-    brightness = sum(avg) / 3
-    return brightness > 30
+    try:
+        headers = {"User-Agent": "Mozilla/5.0"}
+        response = requests.get(url, headers=headers, timeout=10)
+        response.raise_for_status()
+
+        content = response.content
+
+        if url.lower().endswith(".svg"):
+            # Convert SVG to PNG bytes
+            content = cairosvg.svg2png(bytestring=content)
+
+        img = Image.open(BytesIO(content)).convert("RGB")
+        pixels = list(img.getdata())
+        avg = tuple(sum(x) / len(x) for x in zip(*pixels))
+        brightness = sum(avg) / 3
+        return brightness > 30
+
+    except Exception as e:
+        print(f"[⚠] Failed to analyze image brightness for {url}: {e}")
+        return False
 
 def resize_logo(url, size):
-    img = Image.open(BytesIO(requests.get(url).content)).convert("RGBA")
-    img = img.resize(size, Image.Resampling.LANCZOS)
-    buffer = BytesIO()
-    img.save(buffer, format="PNG")
-    buffer.seek(0)
-    return buffer
+    try:
+        headers = {"User-Agent": "Mozilla/5.0"}
+        response = requests.get(url, headers=headers, timeout=10)
+        response.raise_for_status()
+        content = response.content
+
+        # Convert SVG to PNG if needed
+        if url.lower().endswith(".svg"):
+            print(f"[i] Converting SVG to PNG: {url}")
+            content = cairosvg.svg2png(bytestring=content)
+
+        # Open and resize image
+        img = Image.open(BytesIO(content)).convert("RGBA")
+        img = img.resize(size, Image.Resampling.LANCZOS)
+
+        buffer = BytesIO()
+        img.save(buffer, format="PNG")
+        buffer.seek(0)
+        return buffer
+
+    except Exception as e:
+        print(f"[⚠] Failed to resize logo from {url}: {e}")
+        return None
 
 def enhance_image_with_gemini(product_type, image_path, use_ai=True):
     if not use_ai:
