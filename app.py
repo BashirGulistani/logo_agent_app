@@ -352,6 +352,77 @@ def resolve_company_name_to_domain(name):
 
 # Streamlit UI
 st.set_page_config(page_title="Brand Logo Product Mockups")
+BRAND_LOGO_URL = "https://cdn.brandfetch.io/idoN--mZ12/w/200/h/77/theme/light/logo.png?c=1dxbfHSJFAPEGdCLU4o5B"
+
+st.markdown("""
+    <style>
+    /* App background and font */
+    html, body, [class*="css"] {
+        font-family: 'Segoe UI', sans-serif;
+        background-color: #f8f9fa;
+    }
+
+    /* Title header */
+    .stApp > header {
+        background-color: #2c3e50;
+        color: white;
+        padding: 1rem;
+        border-radius: 0 0 10px 10px;
+    }
+
+    /* Input fields */
+    .stTextInput > div > div > input {
+        border: 2px solid #ccc;
+        border-radius: 6px;
+        padding: 0.4rem;
+    }
+
+    /* Buttons */
+    .stButton>button {
+        border-radius: 8px;
+        background-color: #1abc9c;
+        color: white;
+        font-weight: bold;
+        padding: 0.5rem 1.2rem;
+    }
+
+    .stButton>button:hover {
+        background-color: #16a085;
+    }
+
+    /* Toggle */
+    .stToggle {
+        background-color: #e3f6f5;
+        padding: 0.4rem 0.7rem;
+        border-radius: 8px;
+    }
+
+    /* Section titles */
+    .stMarkdown h1 {
+        font-size: 2rem;
+        color: #2c3e50;
+    }
+
+    /* Warnings/info blocks */
+    .stAlert {
+        border-left: 5px solid #1abc9c !important;
+        background-color: #ecf0f1 !important;
+    }
+
+    footer {
+        visibility: hidden;
+    }
+    </style>
+""", unsafe_allow_html=True)
+
+st.markdown(f"""
+    <div style='display: flex; align-items: center; justify-content: center; margin-bottom: 20px;'>
+        <img src="{BRAND_LOGO_URL}" alt="Brand Logo" style="height: 80px; border-radius: 10px;" />
+    </div>
+""", unsafe_allow_html=True)
+
+
+
 st.title("Logo-Ready Product Mockup Generator")
 
 brand_input = st.text_input("Enter a brand name or domain (e.g., Airbnb or airbnb.com)")
