@@ -77,6 +77,8 @@ def get_logo_from_brandfetch(domain, api_key):
     headers = {"Authorization": f"Bearer {api_key}"}
     r = requests.get(f"https://api.brandfetch.io/v2/brands/{domain}", headers=headers)
     if r.status_code != 200:
+        st.warning(f"Brandfetch error {r.status_code}: {r.text}")
+
         return []
     data = r.json()
     urls = []
