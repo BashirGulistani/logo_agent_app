@@ -423,7 +423,7 @@ st.markdown(f"""
 
 
 
-st.title("Logo-Ready Product Mockup Generator")
+st.title("Product Mockup Generator")
 
 brand_input = st.text_input("Enter a brand name or domain (e.g., Airbnb or airbnb.com)")
 use_ai = st.toggle("Enhance with AI", value=True)
