@@ -37,18 +37,16 @@ templates = [
 ]
 
 def is_logo_light(url):
+    if url.lower().endswith(".svg"):
+        print(f"[i] Skipping brightness check for SVG: {url}")
+        return False  # Default to dark background (safe)
+
     try:
         headers = {"User-Agent": "Mozilla/5.0"}
         response = requests.get(url, headers=headers, timeout=10)
         response.raise_for_status()
 
-        content = response.content
-
-        if url.lower().endswith(".svg"):
-            # Convert SVG to PNG bytes
-            content = cairosvg.svg2png(bytestring=content)
-
-        img = Image.open(BytesIO(content)).convert("RGB")
+        img = Image.open(BytesIO(response.content)).convert("RGB")
         pixels = list(img.getdata())
         avg = tuple(sum(x) / len(x) for x in zip(*pixels))
         brightness = sum(avg) / 3
@@ -58,6 +56,7 @@ def is_logo_light(url):
         print(f"[⚠] Failed to analyze image brightness for {url}: {e}")
         return False
 
+
 def resize_logo(url, size):
     try:
         headers = {"User-Agent": "Mozilla/5.0"}
@@ -65,15 +64,12 @@ def resize_logo(url, size):
         response.raise_for_status()
         content = response.content
 
-        # Convert SVG to PNG if needed
         if url.lower().endswith(".svg"):
-            print(f"[i] Converting SVG to PNG: {url}")
-            content = cairosvg.svg2png(bytestring=content)
+            print(f"[i] Skipping resize for SVG: {url}")
+            return None  # Or return a fallback image buffer
 
-        # Open and resize image
         img = Image.open(BytesIO(content)).convert("RGBA")
         img = img.resize(size, Image.Resampling.LANCZOS)
-
         buffer = BytesIO()
         img.save(buffer, format="PNG")
         buffer.seek(0)
