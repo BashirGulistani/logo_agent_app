@@ -38,7 +38,7 @@ templates = [
 def is_logo_light(url):
     if url.lower().endswith(".svg"):
         print(f"[i] Skipping brightness check for SVG: {url}")
-        return False  # Default to dark background (safe)
+        return False  
 
     try:
         headers = {"User-Agent": "Mozilla/5.0"}
@@ -65,7 +65,7 @@ def resize_logo(url, size):
 
         if url.lower().endswith(".svg"):
             print(f"[i] Skipping resize for SVG: {url}")
-            return None  # Or return a fallback image buffer
+            return None  
 
         img = Image.open(BytesIO(content)).convert("RGBA")
         img = img.resize(size, Image.Resampling.LANCZOS)
@@ -150,6 +150,7 @@ def fallback_scrape_logo(domain):
     soup = BeautifulSoup(response.text, "html.parser")
     candidate_urls = []
 
+    
     for img_tag in soup.find_all("img"):
         src = img_tag.get("src")
         if not src:
@@ -159,9 +160,10 @@ def fallback_scrape_logo(domain):
         if "logo" in alt or "logo" in class_name or "logo" in src.lower():
             candidate_urls.append(urljoin(base_url, src))
 
+    
     for link_tag in soup.find_all("link", rel=re.compile("icon", re.I)):
         href = link_tag.get("href")
-        if href and "logo" in href.lower():  # even from <link> only take if "logo" is in name
+        if href and "logo" in href.lower():
             candidate_urls.append(urljoin(base_url, href))
 
     print(f"-> Found {len(set(candidate_urls))} potential candidates. Validating...")
@@ -175,13 +177,33 @@ def fallback_scrape_logo(domain):
     
     allowed_exts = (".svg", ".png", ".jpg", ".jpeg")
     filtered = []
-
     for url in valid_logo_urls:
         filename = urlparse(url).path.split("/")[-1].split("?")[0].lower()
         if filename.endswith(allowed_exts) and "logo" in filename:
             filtered.append(url)
 
-    print(f"\nSUCCESS! Found {len(filtered)} final logo(s) for {domain}:")
+    
+    if not filtered:
+        print("No 'logo' found, trying generic image fallback...")
+        fallback_candidates = []
+
+        
+        for tag in soup.find_all(["img", "link"]):
+            src = tag.get("src") or tag.get("href")
+            if src:
+                full_url = urljoin(base_url, src)
+                filename = urlparse(full_url).path.split("/")[-1].split("?")[0].lower()
+                if filename.endswith(allowed_exts):
+                    fallback_candidates.append(full_url)
+
+        
+        for url in dict.fromkeys(fallback_candidates):
+            if is_valid_image_url(url):
+                print(f"  [✓] Fallback valid image found: {url}")
+                filtered.append(url)
+                break  
+
+    print(f"\nSUCCESS! Returning {len(filtered)} logo(s) for {domain}:")
     for url in filtered:
         print(f"  -> {url}")
 
@@ -231,47 +253,68 @@ def render_and_enhance(templates, logo_urls, renderform_key, use_ai):
     return images_with_labels
 
 
-def create_pdf(images_with_labels, output_path="product_mockups.pdf"):
+def create_pdf(images_with_labels, output_path="client_ready_mockups.pdf"):
     pdf = FPDF()
     product_colors = [
-        "#000000", "#FFFFFF", "#FF5733", "#33C1FF", "#28A745",
-        "#FFC107", "#8E44AD", "#E91E63", "#607D8B", "#795548"
+        ("Black", "#000000"), ("White", "#FFFFFF"), ("Coral", "#FF5733"),
+        ("Sky Blue", "#33C1FF"), ("Green", "#28A745"), ("Gold", "#FFC107"),
+        ("Purple", "#8E44AD"), ("Pink", "#E91E63"), ("Slate", "#607D8B"), ("Brown", "#795548")
     ]
 
-    for path, caption in images_with_labels:
+    for idx, (path, caption) in enumerate(images_with_labels):
         pdf.add_page()
 
         # Product Title
-        pdf.set_font("Helvetica", "B", 18)
+        pdf.set_font("Helvetica", "B", 20)
         pdf.set_text_color(0, 0, 0)
         pdf.cell(0, 15, txt=f"{caption} Edition", ln=True, align='C')
 
+        # Subtitle
+        pdf.set_font("Helvetica", "", 12)
+        pdf.set_text_color(90, 90, 90)
+        pdf.cell(0, 10, txt="Perfect for events, teams, or brand giveaways", ln=True, align='C')
+
         # Product Image
-        pdf.image(path, x=30, y=30, w=150)
+        pdf.image(path, x=30, y=35, w=150)
 
         # Color Label
-        pdf.set_xy(30, 160)
-        pdf.set_font("Helvetica", size=12)
+        pdf.set_xy(30, 200)
+        pdf.set_font("Helvetica", "B", 12)
         pdf.set_text_color(0, 0, 0)
         pdf.cell(0, 10, txt="Available Colors:", ln=True)
 
-        # Color Swatches
+        # Color Swatches + Labels
         x_start = 30
-        y_start = 170
-        swatch_size = 12
-        spacing = 16
+        y_start = 215
+        swatch_size = 8
+        spacing = 14
 
-        for i, hex_color in enumerate(product_colors):
+        for i, (name, hex_color) in enumerate(product_colors):
             r = int(hex_color[1:3], 16)
             g = int(hex_color[3:5], 16)
             b = int(hex_color[5:7], 16)
             x = x_start + i * spacing
-            pdf.set_fill_color(r, g, b)
-            pdf.rect(x, y_start, swatch_size, swatch_size, style='F')
 
-        # Optional: divider line
-        pdf.set_draw_color(220, 220, 220)
-        pdf.line(10, 190, 200, 190)
+            # Swatch with black border
+            pdf.set_draw_color(0, 0, 0)
+            pdf.set_fill_color(r, g, b)
+            pdf.rect(x, y_start, swatch_size, swatch_size, style='FD')
+
+            # Color Name
+            pdf.set_xy(x - 2, y_start + swatch_size + 2)
+            pdf.set_font("Helvetica", size=6)
+            pdf.set_text_color(50, 50, 50)
+            pdf.cell(swatch_size + 6, 4, name, align='C')
+
+        # Divider
+        pdf.set_draw_color(200, 200, 200)
+        pdf.line(10, 240, 200, 240)
+
+        # Contact Info / CTA
+        pdf.set_xy(10, 250)
+        pdf.set_font("Helvetica", size=10)
+        pdf.set_text_color(80, 80, 80)
+        pdf.cell(0, 6, "To place an order, contact: orders@vibronshop.com or visit vibronshop.com/order", align='C')
 
     pdf.output(output_path)
     return output_path
