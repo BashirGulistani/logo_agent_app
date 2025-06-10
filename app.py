@@ -9,7 +9,7 @@ from google.genai import types
 from fpdf import FPDF
 from bs4 import BeautifulSoup
 import re
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlparse
 
 # templates
 templates = [
@@ -100,8 +100,7 @@ def is_valid_image_url(url):
         response = requests.head(url, allow_redirects=True, timeout=5)
         if response.status_code == 200:
             content_type = response.headers.get('content-type', '').lower()
-            if content_type.startswith('image/'):
-                return True
+            return content_type.startswith('image/')
     except requests.exceptions.RequestException:
         return False
     return False
@@ -109,13 +108,15 @@ def is_valid_image_url(url):
 def fallback_scrape_logo(domain):
     base_url = f"https://{domain}"
     headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+        "User-Agent": "Mozilla/5.0"
     }
 
+    print(f"Scraping {base_url}...")
     try:
         response = requests.get(base_url, headers=headers, timeout=10)
         response.raise_for_status()
-    except requests.exceptions.RequestException:
+    except requests.exceptions.RequestException as e:
+        print(f"-> Failed to fetch website: {e}")
         return []
 
     soup = BeautifulSoup(response.text, "html.parser")
@@ -125,22 +126,38 @@ def fallback_scrape_logo(domain):
         src = img_tag.get("src")
         if not src:
             continue
-        alt_text = img_tag.get("alt", "").lower()
-        class_text = " ".join(img_tag.get("class", [])).lower()
-        if "logo" in alt_text or "logo" in class_text or "logo" in src.lower():
+        alt = img_tag.get("alt", "").lower()
+        class_name = " ".join(img_tag.get("class", [])).lower()
+        if "logo" in alt or "logo" in class_name or "logo" in src.lower():
             candidate_urls.append(urljoin(base_url, src))
 
     for link_tag in soup.find_all("link", rel=re.compile("icon", re.I)):
         href = link_tag.get("href")
-        if href:
+        if href and "logo" in href.lower():  # even from <link> only take if "logo" is in name
             candidate_urls.append(urljoin(base_url, href))
 
+    print(f"-> Found {len(set(candidate_urls))} potential candidates. Validating...")
     valid_logo_urls = []
+
     for url in dict.fromkeys(candidate_urls):
         if is_valid_image_url(url):
+            print(f"  [✓] Valid logo found: {url}")
             valid_logo_urls.append(url)
 
-    return valid_logo_urls
+    
+    allowed_exts = (".svg", ".png", ".jpg", ".jpeg")
+    filtered = []
+
+    for url in valid_logo_urls:
+        filename = urlparse(url).path.split("/")[-1].split("?")[0].lower()
+        if filename.endswith(allowed_exts) and "logo" in filename:
+            filtered.append(url)
+
+    print(f"\nSUCCESS! Found {len(filtered)} final logo(s) for {domain}:")
+    for url in filtered:
+        print(f"  -> {url}")
+
+    return filtered
 
 
 
